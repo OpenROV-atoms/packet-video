@@ -19,7 +19,7 @@
   "devDependencies": {
     "eventemitter2": "~1.0.0",
     "polymer": "~1.4.0",
-    "segmented-testmp4": "1.0.0",
+    "segmented-testmp4": "OpenROV-atoms/segmented-testmp4",
     "web-component-tester": "Polymer/web-component-tester#^4.2.2",
     "webcomponentsjs": "Polymer/webcomponentsjs#^0.7.21"
   },
