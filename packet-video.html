@@ -101,6 +101,10 @@ https://code.google.com/p/chromium/issues/detail?id=229412
               type: Boolean,
               value: false
             },
+            novideoImageURL: {
+              type: String,
+              value: ''
+            },
             initialized: {
               type: Boolean,
               value: false,
@@ -115,7 +119,6 @@ https://code.google.com/p/chromium/issues/detail?id=229412
           },
           ready: function() {
             var self = this;
-            this.canvas = this.$['video-canvas'];
             this.fps_count = 0;
             this.fps = 0;
             this.datapackets_count = 0;
