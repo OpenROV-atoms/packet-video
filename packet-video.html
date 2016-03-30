@@ -524,7 +524,7 @@ https://code.google.com/p/chromium/issues/detail?id=229412
                 if (self.sourceBuffer.buffered.length > 0) {
                   lastBuffer = self.sourceBuffer.buffered.end(0);
                 }
-                self.sourceBuffer.appendBuffer(queue.shift());
+                self.sourceBuffer.appendBuffer(self.queue.shift());
               }
 
               //decoder has stalled
