@@ -12,7 +12,7 @@ before_script:
 - npm install -g bower polylint web-component-tester
 - bower install
 script:
-- if [ "${TRAVIS_PULL_REQUEST}" = "false" ]; then wct --skip-plugin local -s 'default'; fi
+- if [ "${TRAVIS_PULL_REQUEST}" = "false" ]; then wct --skip-plugin local; fi
 env:
   global:
     - CXX=g++-4.8
