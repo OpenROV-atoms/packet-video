@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="../bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+    <script src="../bower_components/web-component-tester/browser.js"></script>
+    <!-- import the element to test -->
+    <link rel="import" href="../packet-video.html">
+  </head>
+  <body>
+    <!-- use the document as a place to set up your fixtures -->
+    <test-fixture id="packet-video-fixture">
+      <template>
+        <packet-video>
+          <h2>Test</h2>
+        </packet-video>
+      </template>
+    </test-fixture>
+    <script>
+      localStorage.debug = 'socket-video:*';
+      suite('<packet-video>', function() {
+        var myEl;
+        setup(function() {
+          myEl = fixture('packet-video-fixture');
+          if(self.fetch) {
+              // run my fetch request here
+          } else {
+              alert('No fetch!');
+          }
+        });
+
+        test('defines "init" function', function(done) {
+          fetch('../bower_components/segmented-testmp4/video1/video_0000.mp4')
+          .then(function(response) {
+            return response.arrayBuffer();
+          })
+          .then(function(myBlob) {
+            assert.isDefined(myEl.init,'init function exists');
+            var tb = new Uint8Array(myBlob);
+            assert.isOk(tb instanceof Uint8Array);
+            myEl.init(tb,function(){
+              assert.isOk(myEl.initialized,'video element properly initalized');
+              done();
+            });
+          });
+        });
+
+        test('exposes a buffer "append" method', function() {
+          assert.isDefined(myEl.append);
+        });
+
+        test('appending data without initalizing produces and error message',function(done){
+          fetch('../bower_components/segmented-testmp4/video1/video_0001.mp4')
+          .then(function(response) {
+            return response.arrayBuffer();
+          })
+          .then(function(myBlob) {
+            assert.throws(function(){myEl.append(new Uint8Array(myBlob));}, 'The initFrame property must be set before appending data');
+            done();
+          });
+        });
+
+        test('appending data causes an update event',function(done){
+          fetch('../bower_components/segmented-testmp4/video1/video_0000.mp4')
+          .then(function(response) {
+              return response.arrayBuffer();
+          })
+          .then(function(response) {
+            return new Promise(function(resolve,reject){
+              myEl.init(new Uint8Array(response),resolve);
+            });
+          })
+          .then(function(response) {
+            return fetch('../bower_components/segmented-testmp4/video1/video_0134.mp4')
+          })
+          .then(function(response) {
+            return response.arrayBuffer();
+          })
+          .then(function(response) {
+            var a = new Uint8Array(response);
+            myEl.sourceBuffer.addEventListener('updateend',function(){
+              console.log(myEl.video.currentTime);
+      //        console.log(myEl.sourceBuffer.buffered.end(0));
+              done();
+            });
+            console.log('listening for updateend')
+            myEl.append(a);
+          });
+        });
+
+        test('Playing video1:133-233 should result in >5s of play time',function(done){
+          this.timeout(30000);
+          fetch('../bower_components/segmented-testmp4/video1/video_0000.mp4')
+          .then(function(response) {
+            console.log('first response');
+            return response.arrayBuffer()
+          })
+          .then(function(response) {
+            return new Promise(function(resolve,reject){
+              myEl.init(new Uint8Array(response),resolve);
+            });
+          })
+          .then(function(response) {
+
+
+            //Play segments 134-224
+            //var i = Array.apply(null, {length: 90}).map(Number.call, Number);
+            var start = 133; //133
+            var end = 223; //574 //start+90
+            var current = start;
+
+            var getFrame = function(n){
+              var number = ("000"+(n)).slice(-4);
+              fetch('../bower_components/segmented-testmp4/video1/video_'+number+'.mp4')
+              .then(function(response){
+                return response.arrayBuffer();
+              })
+              .then(function(response){
+                myEl.append(new Uint8Array(response));
+                console.log('pushed... ' + number);
+              })
+            }
+
+            var submitTimer = setInterval(function(){
+              if (current == end){
+                clearInterval(submitTimer);
+                assert.isAbove(myEl.video.currentTime,5,'played the roughly right amount of time');
+                done();
+              }
+              else {
+                getFrame(current++);
+              }
+            },1000/15);
+          })
+        });
+
+
+      });
+    </script>
+  </body>
+</html>

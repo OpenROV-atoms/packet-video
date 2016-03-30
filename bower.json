@@ -1,0 +1,29 @@
+{
+  "name": "packet-video",
+  "version": "0.10.0",
+  "homepage": "https://github.com/OpenROV-atoms/packet-video",
+  "authors": [
+    "BrianAdams <brian@babastik.com>"
+  ],
+  "description": "Webcomponent that displays real-time mp4 video delivered packet by packet over solutions like websockets or socket.io",
+  "main": "packet-video.html",
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests",
+    "wct.conf.json"
+  ],
+  "devDependencies": {
+    "eventemitter2": "~1.0.0",
+    "polymer": "~1.4.0",
+    "segmented-testmp4": "1.0.0",
+    "web-component-tester": "Polymer/web-component-tester#^4.2.2",
+    "webcomponentsjs": "Polymer/webcomponentsjs#^0.7.21"
+  },
+  "dependencies": {
+    "visionmedia-debug": "visionmedia/debug#~2.2.0"
+  }
+}

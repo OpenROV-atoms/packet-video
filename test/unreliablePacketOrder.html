@@ -1,0 +1,137 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="../bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+    <script src="../bower_components/web-component-tester/browser.js"></script>
+    <!-- import the element to test -->
+    <link rel="import" href="../packet-video.html">
+  </head>
+  <body>
+    <!-- use the document as a place to set up your fixtures -->
+    <test-fixture id="packet-video-fixture">
+      <template>
+        <packet-video>
+          <h2>Test</h2>
+        </packet-video>
+      </template>
+    </test-fixture>
+    <script>
+      localStorage.debug = 'socket-video:*';
+      suite('<packet-video>', function() {
+        var myEl;
+        setup(function() {
+          myEl = fixture('packet-video-fixture');
+          if(self.fetch) {
+              // run my fetch request here
+          } else {
+              alert('No fetch!');
+          }
+        });
+
+        //TODO: Figure out how to recover the player when out of order frames stall the player
+        test.skip('Playing video packets out of order does not break player',function(done){
+          this.timeout(30000);
+          fetch('../bower_components/segmented-testmp4/video1/video_0000.mp4')
+          .then(function(response) {
+            console.log('first response');
+            return response.arrayBuffer()
+          })
+          .then(function(response) {
+            return new Promise(function(resolve,reject){
+              myEl.init(new Uint8Array(response),resolve);
+            });
+          })
+          .then(function(response) {
+
+
+            //Play segments 134-224
+            var frameOrder = Array.apply(null, {length: 90}).map(function(n,index){return index+133});
+            frameOrder.swap=function(a,b){
+              var temp = this[a];
+              this[a]=this[b];
+              this[b] = temp;
+            }
+            frameOrder.swap(5,6);
+            var start = 0; //133
+            var end = 90; //574 //start+90
+            var current = start;
+
+            var getFrame = function(n){
+              var number = ("000"+(frameOrder[n])).slice(-4);
+              fetch('../bower_components/segmented-testmp4/video1/video_'+number+'.mp4')
+              .then(function(response){
+                return response.arrayBuffer();
+              })
+              .then(function(response){
+                myEl.append(new Uint8Array(response));
+                console.log('pushed... ' + number);
+              })
+            }
+
+            var submitTimer = setInterval(function(){
+              if (current == end){
+                clearInterval(submitTimer);
+                assert.isAbove(myEl.video.currentTime,5,'played the roughly right amount of time');
+                done();
+              }
+              else {
+                getFrame(current++);
+              }
+            },1000/15);
+          })
+        });
+
+        //TODO: Apparently the Chrome implimentation as of 51.0.2693.2 canary (osx) breaks
+        //if you drop a frame.  Have to figure out how to detect and keep going
+        test.skip('Dropped packets do not break player',function(done){
+          this.timeout(30000);
+          fetch('../bower_components/segmented-testmp4/video1/video_0000.mp4')
+          .then(function(response) {
+            console.log('first response');
+            return response.arrayBuffer()
+          })
+          .then(function(response) {
+            return new Promise(function(resolve,reject){
+              myEl.init(new Uint8Array(response),resolve);
+            });
+          })
+          .then(function(response) {
+
+
+            //Play segments 134-224
+            var frameOrder = Array.apply(null, {length: 90}).map(function(n,index){return index+133});
+            frameOrder.splice(5,1); //drop packet
+            var start = 0; //133
+            var end = 90; //574 //start+90
+            var current = start;
+
+            var getFrame = function(n){
+              var number = ("000"+(frameOrder[n])).slice(-4);
+              fetch('../bower_components/segmented-testmp4/video1/video_'+number+'.mp4')
+              .then(function(response){
+                return response.arrayBuffer();
+              })
+              .then(function(response){
+                myEl.append(new Uint8Array(response));
+                console.log('pushed... ' + number);
+              })
+            }
+
+            var submitTimer = setInterval(function(){
+              if (current == end){
+                clearInterval(submitTimer);
+                assert.isAbove(myEl.video.currentTime,5,'played the roughly right amount of time');
+                done();
+              }
+              else {
+                getFrame(current++);
+              }
+            },1000/15);
+          })
+        });
+
+      });
+    </script>
+  </body>
+</html>
