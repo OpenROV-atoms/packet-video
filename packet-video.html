@@ -400,7 +400,7 @@ https://code.google.com/p/chromium/issues/detail?id=229412
             }
 
             var detectStalledVideo = function() {
-              if (self.videoState == 'stalled' && queue.length > 0 && self.sourceBuffer !== undefined && !self.sourceBuffer.updating) {
+              if (self.videoState == 'stalled' && self.queue.length > 0 && self.sourceBuffer !== undefined && !self.sourceBuffer.updating) {
                 return true;
               }
               return false;
@@ -479,6 +479,7 @@ https://code.google.com/p/chromium/issues/detail?id=229412
 
             var lastBuffer; //state from last check
             var waitingForDecoderReset = Date.now();
+            var lastDecoded; //State of the decoded frames count from last event
 
             //Make these checks after the buffer claims to have finished processing the queue
             this.sourceBuffer.addEventListener('updateend', function() {
@@ -528,16 +529,16 @@ https://code.google.com/p/chromium/issues/detail?id=229412
               }
 
               //decoder has stalled
-              if ((self.lastDecoded > 0) &&
+              if ((lastDecoded > 0) &&
                 (Date.now() > waitingForDecoderReset) &&
                 (self.video.videoState !== 'stalled') &&
-                (self.lastDecoded == self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames)) {
+                (lastDecoded == self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames)) {
                 log_healthCheck('Decoder stall without informing video element detected');
                 recoverSilentDecoderStall();
                 waitingForDecoderReset = Date.now() + 1000;
               }
 
-              this.lastDecoded = self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames;;
+              lastDecoded = self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames;;
 
             })
 
