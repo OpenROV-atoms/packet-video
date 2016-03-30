@@ -8,7 +8,7 @@ addons:
     - google-chrome
     - ubuntu-toolchain-r-test
     packages:
-    - google-chrome-stable
+    - google-chrome-canary
     - g++-4.8
 before_script:
 - npm install -g bower polylint web-component-tester
