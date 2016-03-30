@@ -1,6 +1,8 @@
 # packet-video
 This is a webcomponent that allows streaming live real-time .mp4 video files packet by packet using Media Source Extensions which injects the video packets directly in to the browsers graphic video decoding subsystem for optimal playback.  Great for streaming video over socket.io or websockets.
 
+[![Build Status](https://travis-ci.org/OpenROV-atoms/packet-video.svg?branch=master)](https://travis-ci.org/OpenROV-atoms/packet-video)
+
 This component has been tuned for low-latency video delivery (no buffering).
 
 The component works and has passing unit tests.
