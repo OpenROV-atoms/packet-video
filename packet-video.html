@@ -179,13 +179,15 @@
           //TODO: We need a better option as it is possible with lower resolution
           //to have small I frames that would not trigger the keyframe matching criteria
           //https://crbug.com/229412
-          if (!this.keyframe) {
-            if (data.length < 65536) {
-              log_trace('tossing out frame, waiting for I frame');
-              return;  //wait for iframe
-            }
-            this.keyframe = true;
-          }
+
+//          if (!this.keyframe) {
+//            if (data.length < 65536) {
+//              log_trace('tossing out frame, waiting for I frame');
+//              return;  //wait for iframe
+//            }
+//            this.keyframe = true;
+//          }
+
           this.fps_count++;
           this.bps_count += data.length;
           if (this.safeToAppend()) {
@@ -515,7 +517,7 @@
               if (self.sourceBuffer.buffered.length > 0) {
                 lastBuffer = self.sourceBuffer.buffered.end(0);
               }
-              self.sourceBuffer.appendBuffer(queue.shift());
+              self.sourceBuffer.appendBuffer(self.queue.shift());
             }
             //decoder has stalled
             if (self.lastDecoded > 0 && Date.now() > waitingForDecoderReset && self.video.videoState !== 'stalled' && (self.lastDecoded == self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames)) {
