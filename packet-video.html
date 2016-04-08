@@ -367,7 +367,7 @@
             self.bps = (self.bytes_count * 8).toLocaleString();
             self.fps_count = self.droppedframes + self.decodedframes;
             self.bytes_count = 0;
-            if (self.sourceBuffer.length <= 0)
+            if ((self.mediaSource.sourceBuffers.length==0) || (self.sourceBuffer.length <= 0))
               return;
             //remove old video from the buffer
             //Do to chrome issues, must keep the lats I frame in the buffer.
@@ -394,7 +394,7 @@
             if (self.mediaSource.readyState !== 'open')
               return;
             var sourceBuffer = self.sourceBuffer;
-            if (sourceBuffer == undefined)
+            if ((sourceBuffer == undefined) || (self.mediaSource.sourceBuffers.length==0))
               return;
             if (sourceBuffer.buffered.length > 0) {
               self.buffertime = sourceBuffer.buffered.end(0) - sourceBuffer.buffered.start(0);
