@@ -62,3 +62,7 @@ https://code.google.com/p/chromium/issues/detail?id=529990
 
 videoTag.currentTime should not exceed videoTag.buffered.end(N) for the currently playing range
 https://code.google.com/p/chromium/issues/detail?id=414828
+
+Chrome requires a user touch event to play video
+http://chromium-bugs.chromium.narkive.com/cW5IXVgj/issue-178297-in-chromium-android-chrome-does-not-allow-applications-to-play-html5-audio-without-an
+https://bugs.chromium.org/p/chromium/issues/detail?id=178297

@@ -131,6 +131,11 @@
             }
             return true;
           };
+          //work around for auto play?
+          document.addEventListener("click", function(e){
+            self.video.play();
+            document.removeEventListener(e.type, arguments.callee);
+          }, false);
         },
         init: function (initFrame, callback) {
           //Called with the initFrame to start the player.
@@ -211,7 +216,7 @@
           };
           //If the mediaSouce is not yet ready, abort and try agian after a short pause
           if (this.mediaSource.readyState != 'open') {
-            setTimeout(this.initplayer.bind(this, callback), 500);
+            setTimeout(self.initSourceBuffer.bind(this, callback), 500);
             //console.log("retrying source open");
             return;
           }
