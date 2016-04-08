@@ -189,7 +189,7 @@
           this.initSourceBuffer(function () {
             self.sourceBuffer.appendBuffer(initFrame);
             self.init_queued = true;
-          //  self.healthCheck();
+            self.healthCheck();
             self._setInitialized(true);
             if (callback && typeof callback == 'function') {
               callback();
