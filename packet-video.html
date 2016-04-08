@@ -127,7 +127,7 @@
           //non-public methods
           this.safeToAppend = function () {
             if (self.init_queued == false || self.sourceBuffer == null || self.sourceBuffer.updating || self.queue.length == 0 || self.video.error !== null
-              || self.mediaSource.sourceBuffers.length==0
+              || self.mediaSource.sourceBuffers.length==0 || !self.init_queued
             ) {
               return false;
             }
@@ -187,9 +187,9 @@
           //Need to establish the buffers and pipeline to the video decoder
           //before we can start appending the data anywhere.
           this.initSourceBuffer(function () {
-            self.healthCheck();
             self.sourceBuffer.appendBuffer(initFrame);
             self.init_queued = true;
+          //  self.healthCheck();
             self._setInitialized(true);
             if (callback && typeof callback == 'function') {
               callback();
@@ -235,6 +235,9 @@
           if (this.safeToAppend()) {
             self.sourceBuffer.appendBuffer(data);
           } else {
+            if (queue.length>120){
+              queue.shift();
+            }
             queue.push(data);
           }
           this.ProcessedFrame({ size: data.length });
@@ -518,6 +521,7 @@
                     self.sourceBuffer.appendBuffer(self.queue.shift());
                  }
             */
+            self.init_queued = false;
             self.video.src = '';
             if (self.oneSecondIntervalTimer!==null){
               clearInterval(self.oneSecondIntervalTimer);
@@ -551,7 +555,7 @@
             //This is a work around because the default mode (segments) for video playback
             //assumes frames out of sequence and won't just play them in the order
             //they are palced in the buffer.  Wating for (sequence mode to be implimented)
-            if (self.video.buffered.length > 0 && self.video.currentTime == 0) {
+            if (self.video.buffered.length > 0 && self.video.currentTime == 0 && !self.video.paused) {
               log_healthCheck('Video has not started with data in the queue, bumping...');
               recoverStuckVideoPlayer();
               return
