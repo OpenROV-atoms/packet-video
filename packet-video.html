@@ -131,11 +131,41 @@
             }
             return true;
           };
+          this.mobilePlayLockDisabled = false;
           //work around for auto play?
-          document.addEventListener("click", function(e){
-            self.video.play();
+          document.addEventListener("touchstart", function(e){
+            self.play();
             document.removeEventListener(e.type, arguments.callee);
+            self.mobilePlayLockDisabled=true;
           }, false);
+        },
+        play: function (){
+          //Hopefully this can go when we no longer have to guard the Play option due to:
+          //https://bugs.chromium.org/p/chromium/issues/detail?id=178297
+          var isMobile = {
+              Windows: function() {
+                  return /IEMobile/i.test(navigator.userAgent);
+              },
+              Android: function() {
+                  return /Android/i.test(navigator.userAgent);
+              },
+              BlackBerry: function() {
+                  return /BlackBerry/i.test(navigator.userAgent);
+              },
+              iOS: function() {
+                  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+              },
+              any: function() {
+                  return (isMobile.Android() || isMobile.BlackBerry() || isMobile.iOS() || isMobile.Windows());
+              }
+          };
+          if(isMobile.Android()){
+            //we have to wait for a touch event before calling play
+            if (!this.mobilePlayLockDisabled){
+              return;
+            }
+          }
+          this.video.play();
         },
         init: function (initFrame, callback) {
           //Called with the initFrame to start the player.
@@ -509,7 +539,7 @@
             if (detectPausedVideo()) {
               //  video.currentTime=video.buffered.end(0);
               log_healthCheck('Video is paused with data in the queue, bumping...');
-              self.video.play();  // Start playing after 1st chunk is appended.
+              self.play();  // Start playing after 1st chunk is appended.
             }
             //The system is likely ran out of content and stalled
             if (detectStalledVideo()) {
