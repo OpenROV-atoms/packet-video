@@ -134,7 +134,7 @@
           this.mobilePlayLockDisabled = false;
           //work around for auto play?
           document.addEventListener("touchstart", function(e){
-            self.play();
+            self.video.play();
             document.removeEventListener(e.type, arguments.callee);
             self.mobilePlayLockDisabled=true;
           }, false);
