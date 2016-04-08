@@ -126,7 +126,7 @@
           this.lastDecoded = null;
           //non-public methods
           this.safeToAppend = function () {
-            if (self.init_queued == false || self.sourceBuffer == null || self.sourceBuffer.updating || self.queue.length > 0 || self.video.error !== null
+            if (self.init_queued == false || self.sourceBuffer == null || self.sourceBuffer.updating || self.queue.length == 0 || self.video.error !== null
               || self.mediaSource.sourceBuffers.length==0
             ) {
               return false;
@@ -140,8 +140,12 @@
             document.removeEventListener(e.type, arguments.callee);
             self.mobilePlayLockDisabled=true;
           }, false);
+          this.playcooldown=Date.now();
         },
         play: function (){
+          if (Date.now()<this.playcooldown){
+            return;
+          }
           //Hopefully this can go when we no longer have to guard the Play option due to:
           //https://bugs.chromium.org/p/chromium/issues/detail?id=178297
           var isMobile = {
@@ -168,6 +172,7 @@
             }
           }
           this.video.play();
+          playcooldown=Date.now() + 1000;
         },
         init: function (initFrame, callback) {
           //Called with the initFrame to start the player.
@@ -268,7 +273,15 @@
           //TODO: The video seems to work even if the codec is not an exact match to the actual
           //media.  Should find a way to inspect the init frame to figure out the right values which
           //should also open up additional streaming formats
-          this.sourceBuffer = this.mediaSource.addSourceBuffer('video/mp4; codecs="avc1.4d401e"');
+          try{
+            this.sourceBuffer = this.mediaSource.addSourceBuffer('video/mp4; codecs="avc1.4d401e"');
+          } catch(e){
+            //This has been causing problems when using hardware decoders on OS/X.  Similar symptoms on Android.
+            //Could changes have been made to restrict the codecs again?
+            console.error(JSON.stringify(e));
+            setTimeout(self.initSourceBuffer.bind(this, callback), 500);
+            return;
+          }
           //this is intended as an optimization for real-time video, take the packets as they come.
           if (this.sourceBuffer.mode){
             this.sourceBuffer.mode = 'sequence';
@@ -285,6 +298,28 @@
               log_trace('sourceBuffer event:', ev);
             });
           });
+
+          //This attempts to move data in to sourceBuffer, and schedules
+          //an auto retry if it is not safe to do so, which should help recover
+          //from situations where the updateend event fired when no data was ready
+          //thus stopping the update loop.
+          var pendingmove = false;
+          var moveQueueToSourceBuffer = function moveQueueToSourceBuffer(scheduled){
+            if (pendingmove && !scheduled){return};
+            pendingmove = true;
+            if (self.safeToAppend()){
+              self.sourceBuffer.appendBuffer(self.queue.shift());
+              log_trace('inserting data from queue in to sourceBuffer:', 'moveQueueToSourceBuffer');
+              pendingmove=false;
+            } else {
+              setTimeout(moveQueueToSourceBuffer.bind(this,true), 50);
+            }
+          }
+
+          this.sourceBuffer.addEventListener('updateend',function(){
+            //This is the primary engine for feeding data in to the buffer from the queue
+            moveQueueToSourceBuffer();
+          })
           var keyframe = false;
         },
         attached: function () {
@@ -519,6 +554,7 @@
             if (self.video.buffered.length > 0 && self.video.currentTime == 0) {
               log_healthCheck('Video has not started with data in the queue, bumping...');
               recoverStuckVideoPlayer();
+              return
             }
             //Check for a buffer getting disassociated from the video object... possibly from the browser window sleeping?
             if (detectDisassociatedBuffer()) {
@@ -529,27 +565,34 @@
               //  video.currentTime=video.buffered.end(0);
               log_healthCheck('Video is paused with data in the queue, bumping...');
               self.play();  // Start playing after 1st chunk is appended.
+              return;
             }
             //The system is likely ran out of content and stalled
             if (detectStalledVideo()) {
               log_healthCheck('Video stalled, queue size:' + self.queue.length + ' injecting next frame to buffer');
               pushFramefromQueue();
+              return;
             }
-            if (self.queue.length > 0 && !self.sourceBuffer.updating) {
+            if (self.queue.length > 0 && !self.sourceBuffer.updating && self.mediaSource.readyState == 'open' && self.video.error == null) {
+              //I think this check should be taking in to account the decoded count
               if (self.sourceBuffer.buffered.length > 0 && lastBuffer == self.sourceBuffer.buffered.end(0)) {
                 log_healthCheck('Frames getting lost between the buffer and decoder, attemping to fix');
                 recoverFromFrameRejection();
+                //return;
               }
               if (self.sourceBuffer.buffered.length > 0) {
                 lastBuffer = self.sourceBuffer.buffered.end(0);
+                //return;
               }
               self.sourceBuffer.appendBuffer(self.queue.shift());
+              return;
             }
             //decoder has stalled
             if (self.lastDecoded > 0 && Date.now() > waitingForDecoderReset && self.video.videoState !== 'stalled' && (self.lastDecoded == self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames)) {
               log_healthCheck('Decoder stall without informing video element detected');
               recoverSilentDecoderStall();
               waitingForDecoderReset = Date.now() + 1000;
+              return;
             }
 
           };
@@ -566,8 +609,13 @@
               log_healthCheck.log('The current play time is reported to be beyond the buffer');
             }
           });
-          this.video.addEventListener('error', function () {
+          this.video.addEventListener('error', function (e) {
             log_healthCheck('Video player error detected');
+            if (this.error ===null){
+              console.error('Video element threw an error event but does not have an error recorded');
+              //How to handle this
+              return;
+            }
             if (this.error.code == 3) {
               self.set('stats.errors.video.code3', self.stats.errors.video.code3 + 1);
               recoverFromVideoElementError();
