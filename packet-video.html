@@ -126,7 +126,9 @@
           this.lastDecoded = null;
           //non-public methods
           this.safeToAppend = function () {
-            if (self.init_queued == false || self.sourceBuffer == null || self.sourceBuffer.updating || self.queue.length > 0 || self.video.error !== null) {
+            if (self.init_queued == false || self.sourceBuffer == null || self.sourceBuffer.updating || self.queue.length > 0 || self.video.error !== null
+              || self.mediaSource.sourceBuffers.length==0
+            ) {
               return false;
             }
             return true;
@@ -256,7 +258,9 @@
             return;
           }
           this.mediaSource.sourceBuffers.addEventListener('addsourcebuffer', function (e) {
-            callback();
+            if ((callback!==undefined) && (typeof(callback) == 'function')){
+              callback();
+            }
             //we wait for the sourceBuffer to be added
             //http://www.sitepoint.com/create-one-time-events-javascript/
             e.target.removeEventListener(e.type, arguments.callee);
@@ -367,8 +371,11 @@
             self.bps = (self.bytes_count * 8).toLocaleString();
             self.fps_count = self.droppedframes + self.decodedframes;
             self.bytes_count = 0;
-            if ((self.mediaSource.sourceBuffers.length==0) || (self.sourceBuffer.length <= 0))
-              return;
+            if ((self.mediaSource.sourceBuffers.length==0) || (self.sourceBuffer.length <= 0)){
+
+
+            return;
+            }
             //remove old video from the buffer
             //Do to chrome issues, must keep the lats I frame in the buffer.
             if (!self.sourceBuffer.updating && video.buffered.length > 0) {
@@ -394,8 +401,10 @@
             if (self.mediaSource.readyState !== 'open')
               return;
             var sourceBuffer = self.sourceBuffer;
-            if ((sourceBuffer == undefined) || (self.mediaSource.sourceBuffers.length==0))
+            if ((sourceBuffer == undefined) || (self.mediaSource.sourceBuffers.length==0)){
+              self.initSourceBuffer();
               return;
+            };
             if (sourceBuffer.buffered.length > 0) {
               self.buffertime = sourceBuffer.buffered.end(0) - sourceBuffer.buffered.start(0);
               self.gaptime = video.buffered.end(0) - video.currentTime;
@@ -407,7 +416,10 @@
               //Assume we are stuck.. again
               log_healthCheck('Video stall detected, bumping...');
               video.currentTime = video.seekable.end(0);
+            } else if ((self.queue.length>0) && self.sourceBuffer.buffered.length==0 ) {
+              self.sourceBuffer.appendBuffer(self.queue.shift());
             }
+
           }, 500);
         },
         stop: function () {
@@ -472,42 +484,18 @@
                  }
             */
             self.video.src = '';
-            self.video.load();
-            this.mediaSource = new MediaSource();
-            [
-              'sourceopen',
-              'sourceended',
-              'sourceclose',
-              'loadedmetadata',
-              'loadeddata',
-              'canplay',
-              'canplaythrough',
-              'seeking',
-              'ended',
-              'loadstart',
-              'playing',
-              'waiting',
-              'progress',
-              'suspend',
-              'stalled'
-            ].forEach(function (ev) {
-              self.mediaSource.addEventListener(ev, function () {
-                log_trace('mediaSource event:', ev);
-              });
-            });
-            self.mediaSource.addEventListener('sourceopen', function () {
-              this.mediaSourceOpen = true;
-            });
-            [
-              'addsourcebuffer',
-              'removesourcebuffer'
-            ].forEach(function (ev) {
-              self.mediaSource.sourceBuffers.addEventListener(ev, function () {
-                log_trace('sourceBufferList event:', ev);
-              });
-            });
-            self.video.src = window.URL.createObjectURL(self.mediaSource);
-            self.video.load();
+            if (self.oneSecondIntervalTimer!==null){
+              clearInterval(self.oneSecondIntervalTimer);
+            }
+            if (self.halfSecondIntervalTimer!==null){
+              clearInterval(self.halfSecondIntervalTimer);
+            }
+            if (self.healthCheckInterval!=null){
+              clearInterval(self.healthCheckInterval);
+            }
+            self.attached();
+            self.init(self.initFrame);
+
           };
           var pushFramefromQueue = function () {
             self.sourceBuffer.appendBuffer(self.queue.shift());
@@ -516,10 +504,11 @@
           //state from last check
           var waitingForDecoderReset = Date.now();
           //Make these checks after the buffer claims to have finished processing the queue
-          this.sourceBuffer.addEventListener('updateend', function () {
+
+          var check = function () {
             //if both stalled buffer and decoder treat as video error
             if (bufferAndDecoderStalled()) {
-              self.video.stats.errors.video.totalfailure++;
+              self.stats.errors.video.totalfailure++;
               self.notifyPath('video.stats.errors.video.totalfailure');
               recoverFromVideoElementError();
               return;
@@ -562,8 +551,13 @@
               recoverSilentDecoderStall();
               waitingForDecoderReset = Date.now() + 1000;
             }
-            this.lastDecoded = self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames;
+
+          };
+          this.sourceBuffer.addEventListener('updateend', function(){
+            check();
+            self.lastDecoded = self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames;
           });
+          this.healthCheckInterval = setInterval(check,1000);
           this.video.addEventListener('seeking', function () {
             if (self.video.buffered.length < 1)
               return;
