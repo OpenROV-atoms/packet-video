@@ -41,7 +41,7 @@
   <template>
     <div id="videocontainer" style="display:block; height:100%; width:100%; position:relative;" on-hover="">
       <img id="videomissing" src="{{novideoImageURL}}" hidden$="{{isHidden}}">
-      <video id="video" controls preload="metadata"></video>
+      <video id="video" autoplay preload="metadata"></video>
       <content></content>
       <div id='stats'>
         <div id='fps'><span>{{fps}}</span> decoded fps</div>
@@ -188,8 +188,8 @@
 //            this.keyframe = true;
 //          }
 
-          this.fps_count++;
-          this.bps_count += data.length;
+          //this.fps_count++;
+          //this.bps_count += data.length;
           if (this.safeToAppend()) {
             self.sourceBuffer.appendBuffer(data);
           } else {
@@ -231,7 +231,9 @@
           //should also open up additional streaming formats
           this.sourceBuffer = this.mediaSource.addSourceBuffer('video/mp4; codecs="avc1.4d401e"');
           //this is intended as an optimization for real-time video, take the packets as they come.
-          this.sourceBuffer.mode = 'sequence';
+          if (this.sourceBuffer.mode){
+            this.sourceBuffer.mode = 'sequence';
+          }
           [
             'updatestart',
             'updateend',
@@ -276,9 +278,9 @@
               log_trace('mediaSource event:', ev);
             });
           });
-          this.mediaSource.addEventListener('sourceopen', function () {
-            this.mediaSourceOpen = true;
-          });
+  //        this.mediaSource.addEventListener('sourceopen', function () {
+  //          this.mediaSourceOpen = true;
+  //        });
           [
             'addsourcebuffer',
             'removesourcebuffer'
@@ -539,11 +541,11 @@
             log_healthCheck('Video player error detected');
             if (this.error.code == 3) {
               self.set('stats.errors.video.code3', self.stats.errors.video.code3 + 1);
-              recoverFromVideoElementError;
+              recoverFromVideoElementError();
             }
           });
           this.video.addEventListener('progress', function (ev) {
-            self.videoState = ev;
+            self.videoState = ev.type;
           });
         },
         ProcessedFrame: function (details) {
