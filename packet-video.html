@@ -220,9 +220,16 @@
                setTimeout(function(){
                  //video.currentTime+=.001;
                  safePlay()
-               },1000);
+               },500);
                //video.play(); //because canplay won't fire
-             })
+             });
+            //http://code.tutsplus.com/tutorials/html5-audio-and-video-what-you-must-know--net-15545
+            video.addEventListener('loadeddata',function(){
+              setTimeout(function(){
+                safePlay()
+              },1000);
+            });
+
              video.addEventListener('seeking', seek);
              this.cleanupInterval = setInterval(function(){
                if (!sourceBuffer.updating && video.buffered.length > 0) {
