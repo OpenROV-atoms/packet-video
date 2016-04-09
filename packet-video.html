@@ -188,7 +188,7 @@
              ].forEach(function (ev) {
                sourceBuffer.addEventListener(ev, function () {
                  //TODO: Move the event tracing to a debug library for runtime on/off
-                 console.log('sourceBuffer event:', ev);
+                 log_trace('sourceBuffer event:', ev);
                });
              });
              if (sourceBuffer.mode){
@@ -212,9 +212,9 @@
              })
              video.addEventListener('seeking', seek);
              this.cleanupInterval = setInterval(function(){
-               if (!self.sourceBuffer.updating && video.buffered.length > 0) {
-                 if (video.currentTime - 30 > video.buffered.start(0)) {
-                   self.sourceBuffer.remove(video.buffered.start(0), video.currentTime - 30);
+               if (!sourceBuffer.updating && video.buffered.length > 0) {
+                 if (video.currentTime - 5 > video.buffered.start(0)) {
+                   sourceBuffer.remove(video.buffered.start(0), video.currentTime - 5);
                  }
               }
              },1000);
@@ -245,6 +245,9 @@
 
         },
         append: function(data) {
+          if(this.buffer.length>=20){
+            this.buffer.shift();
+          }
           this.buffer.push(data);
           this.checkBuffer();
         }
