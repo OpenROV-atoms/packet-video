@@ -86,7 +86,10 @@
           }
         },
         buffer: [],
+        initInProgress: false,
         init: function(initFrame, callback) {
+          if (this.initInProgress) {return};
+          this.initInProgress=true;
           var buffer=this.buffer;
           buffer.push(initFrame)
           var video = this.$.video;
@@ -161,6 +164,7 @@
             mediaSource.sourceBuffers.addEventListener('addsourcebuffer', function(){
               self._setInitialized(true);
               callback();
+              self.initInProgress=false;
             })
 
 
