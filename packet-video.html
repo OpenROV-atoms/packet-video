@@ -198,7 +198,7 @@
              sourceBuffer.addEventListener('updateend',function(){
                checkBuffer;
              })
-             checkBuffer();
+
              video.addEventListener('timeupdate', checkBuffer);
              var safePlay = function(){
                if (!video.pause){
@@ -244,6 +244,7 @@
                  }
               }
              },1000);
+             checkBuffer(); //trigger the first packet
           };
 
           function appendSegment(chunk) {
