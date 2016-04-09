@@ -229,6 +229,12 @@
                 safePlay()
               },1000);
             });
+            video.addEventListener('suspend',function(){
+              //on a mobile connection, this seems to get triggered
+              setTimeout(function(){
+                safePlay()
+              },1000);
+            });
 
              video.addEventListener('seeking', seek);
              this.cleanupInterval = setInterval(function(){
