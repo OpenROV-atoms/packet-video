@@ -89,7 +89,6 @@
         init: function(initFrame, callback) {
           var buffer=this.buffer;
           buffer.push(initFrame)
-          this._setInitialized(true);
           var video = this.$.video;
           [
             'loadstart',
@@ -149,6 +148,22 @@
               });
             });
 
+             [
+               'addsourcebuffer',
+               'removesourcebuffer'
+             ].forEach(function (ev) {
+                mediaSource.sourceBuffers.addEventListener(ev, function () {
+                 console.log('sourceBufferList event:', ev);
+               });
+             });
+
+            var self=this;
+            mediaSource.sourceBuffers.addEventListener('addsourcebuffer', function(){
+              self._setInitialized(true);
+              callback();
+            })
+
+
             //console.log(mediaSource.readyState); // closed
             video.src = URL.createObjectURL(mediaSource);
             mediaSource.addEventListener('sourceopen', sourceOpen);
@@ -192,7 +207,7 @@
                //video.play(); //because canplay won't fire
              })
              video.addEventListener('seeking', seek);
-             callback();
+
           };
 
           function appendSegment(chunk) {
