@@ -35,7 +35,7 @@
       font-variant: bold;
       color: orange;
       font-size: 2vw;
-      /*	visibility:hidden;        */
+      visibility:hidden;
     }
   </style>
   <template>
@@ -119,7 +119,7 @@
             'pause'
           ].forEach(function (ev) {
             video.addEventListener(ev, function () {
-              console.log('video event:', ev);
+              log_trace('video event:', ev);
             });
           });
 
@@ -147,7 +147,7 @@
               'stalled'
             ].forEach(function (ev) {
               mediaSource.addEventListener(ev, function () {
-                console.log('mediaSource event:', ev);
+                log_trace('mediaSource event:', ev);
               });
             });
 
@@ -156,7 +156,7 @@
                'removesourcebuffer'
              ].forEach(function (ev) {
                 mediaSource.sourceBuffers.addEventListener(ev, function () {
-                 console.log('sourceBufferList event:', ev);
+                 log_trace('sourceBufferList event:', ev);
                });
              });
 
@@ -194,7 +194,7 @@
              if (sourceBuffer.mode){
                 sourceBuffer.mode = 'sequence';
              }
-             console.log('sourceBuffer mode:',sourceBuffer.mode);
+             log_trace('sourceBuffer mode:',sourceBuffer.mode);
              sourceBuffer.addEventListener('updateend',function(){
                checkBuffer;
              })
@@ -211,12 +211,17 @@
                //video.play(); //because canplay won't fire
              })
              video.addEventListener('seeking', seek);
-
+             this.cleanupInterval = setInterval(function(){
+               if (!self.sourceBuffer.updating && video.buffered.length > 0) {
+                 if (video.currentTime - 30 > video.buffered.start(0)) {
+                   self.sourceBuffer.remove(video.buffered.start(0), video.currentTime - 30);
+                 }
+              }
+             },1000);
           };
 
           function appendSegment(chunk) {
             sourceBuffer.appendBuffer(chunk);
-            console.log('video current time:',video.currentTime);
           };
 
           function checkBuffer(_) {
@@ -228,13 +233,13 @@
           };
           this.checkBuffer = checkBuffer;
           function seek(e) {
-            console.log(e);
+            log(e);
             if (mediaSource.readyState === 'open') {
               sourceBuffer.abort();
-              console.log(mediaSource.readyState);
+              log(mediaSource.readyState);
             } else {
-              console.log('seek but not open?');
-              console.log(mediaSource.readyState);
+              log('seek but not open?');
+              log(mediaSource.readyState);
             }
           };
 
