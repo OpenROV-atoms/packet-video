@@ -200,13 +200,26 @@
              })
              checkBuffer();
              video.addEventListener('timeupdate', checkBuffer);
+             var safePlay = function(){
+               if (!video.pause){
+                 return;
+               }
+               if (/Android/i.test(navigator.userAgent)){
+                 document.addEventListener("touchstart", function(e){
+                    video.play();
+                    document.removeEventListener(e.type, arguments.callee);
+                  }, false);
+               } else {
+                 video.play();
+               }
+             }
              video.addEventListener('canplay', function() {
-                video.play();
+                safePlay();
              });
              video.addEventListener('loadedmetadata',function(){
                setTimeout(function(){
                  //video.currentTime+=.001;
-                 video.play()
+                 safePlay()
                },1000);
                //video.play(); //because canplay won't fire
              })
