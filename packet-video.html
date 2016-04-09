@@ -28,14 +28,14 @@
     }
 
     #stats {
-      top: 0px;
-      left: 0;
+      top: 5px;
+      left: 5px;
       position: absolute;
+      padding: 2px;
       margin: 10px;
       font-variant: bold;
       color: orange;
-      font-size: 2vw;
-      visibility:hidden;
+      font-size: 1.5vw;
     }
   </style>
   <template>
@@ -43,7 +43,7 @@
       <img id="videomissing" src="{{novideoImageURL}}" hidden$="{{isHidden}}">
       <video id="video" ></video>
       <content></content>
-      <div id='stats'>
+      <div id='stats' hidden$="{{showStats}}">
         <div id='fps'><span>{{fps}}</span> decoded fps</div>
         <div id='bps'><span>{{bps}}</span> b/s</div>
         <div id='currentTime'><span>{{currentTime}}</span> (current time)</div>
@@ -77,13 +77,72 @@
         properties: {
           latencyReducer: {
             type: Boolean,
-            value: false
+            value: true
           },
           initialized: {
             type: Boolean,
             value: false,
             readOnly: true
+          },
+          showStats: {
+            type: Boolean,
+            value: false
           }
+        },
+        ready: function(){
+          var self = this;
+          this.fps_count = 0;
+          this.fps = 0;
+          this.datapackets_count = 0;
+          this.bytes_count = 0;
+          this.bps = 0;
+          this.buffertime = 0;
+          this.buffertimeStart = 0;
+          this.buffertimeEnd = 0;
+          this.gaptime = 0;
+          this.paused = true;
+          this.error = false;
+          this.currentTime = 0;
+          this.droppedframes = 0;
+          this.decodedframes = 0;
+          this.stats = {
+            errors: {
+              video: {
+                code3: 0,
+                bufferDisassociation: 0,
+                totalfailure: 0
+              },
+              mediaSource: 0,
+              bufferSource: 0
+            }
+          };
+
+          this.statsIntervalTimer = setInterval(function () {
+            if (!self.initialized){
+              return;
+            }
+            var video = self.$.video;
+            self.paused = video.paused;
+            self.queueSize = self.buffer.length;
+            self.error = video.error !== null;
+            self.currentTime = video.currentTime.toLocaleString();
+            self.buffertime = video.buffered.end(0) - video.buffered.start(0);
+            self.gaptime = video.buffered.end(0) - video.currentTime;
+            self.buffertimeStart = video.buffered.start(0);
+            self.buffertimeEnd = video.seekable.end(0);
+            self.droppedframes = video.webkitDroppedFrameCount;
+            self.decodedframes = video.webkitDecodedFrameCount || video.mozDecodedFrames;
+            self.fps = self.droppedframes + self.decodedframes - self.fps_count;
+            self.fps = self.fps*2; //per second
+            self.bps = (self.bytes_count * 8).toLocaleString();
+            self.bps = self.bps*2;
+            self.fps_count = self.droppedframes + self.decodedframes;
+            self.bytes_count = 0;
+          },500);
+
+          this.formatSeconds= function (seconds) {
+            return Number(seconds).toFixed(2) + ' seconds';
+          };
         },
         buffer: [],
         initInProgress: false,
@@ -192,10 +251,14 @@
 
             //console.log(mediaSource.readyState); // closed
             video.src = URL.createObjectURL(mediaSource);
+
             mediaSource.addEventListener('sourceopen', sourceOpen);
           } else {
             console.error('Unsupported MIME type or codec: ', mimeCodec);
+            return;
           }
+
+
 
           var sourceBuffer = null;
 
@@ -277,7 +340,9 @@
 
         },
         append: function(data) {
-          if(this.buffer.length>=20){
+          maxQueueSize = this.latencyReducer ? 1:20;
+
+          if(this.buffer.length>=maxQueueSize){
             this.buffer.shift();
           }
           this.buffer.push(data);
