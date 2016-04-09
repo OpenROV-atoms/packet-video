@@ -41,7 +41,7 @@
   <template>
     <div id="videocontainer" style="display:block; height:100%; width:100%; position:relative;" on-hover="">
       <img id="videomissing" src="{{novideoImageURL}}" hidden$="{{isHidden}}">
-      <video id="video" autoplay preload="metadata"></video>
+      <video id="video" ></video>
       <content></content>
       <div id='stats'>
         <div id='fps'><span>{{fps}}</span> decoded fps</div>
@@ -66,8 +66,8 @@
     </div>
   </template>
   <script src="../visionmedia-debug/dist/debug.js"></script>
-    <script>
-    (function () {
+  <script>
+    (function() {
       var log = debug('socket-video:unclassified');
       var log_setup = debug('socket-video:setup');
       var log_trace = debug('socket-video:trace');
@@ -85,287 +85,12 @@
             readOnly: true
           }
         },
-        getHTMLVideoElement: function () {
-          //returns a handle the the video video element so that it can
-          //be integrated with a canvas for video effects
-          //http://html5doctor.com/video-canvas-magic/
-          return this.video;
-        },
-        ready: function () {
-          var self = this;
-          this.canvas = this.$['video-canvas'];
-          this.fps_count = 0;
-          this.fps = 0;
-          this.datapackets_count = 0;
-          this.bytes_count = 0;
-          this.bps = 0;
-          this.buffertime = 0;
-          this.buffertimeStart = 0;
-          this.buffertimeEnd = 0;
-          this.gaptime = 0;
-          this.paused = true;
-          this.error = false;
-          this.currentTime = 0;
-          this.droppedframes = 0;
-          this.decodedframes = 0;
-          this.stats = {
-            errors: {
-              video: {
-                code3: 0,
-                bufferDisassociation: 0,
-                totalfailure: 0
-              },
-              mediaSource: 0,
-              bufferSource: 0
-            }
-          };
-          this.keyframe = false;
-          this.queue = [];
-          this.mediaSourceOpen = false;
-          this.init_queued = false;
-          this.lastDecoded = null;
-          //non-public methods
-          this.safeToAppend = function () {
-            if (self.init_queued == false || self.sourceBuffer == null || self.sourceBuffer.updating || self.queue.length == 0 || self.video.error !== null
-              || self.mediaSource.sourceBuffers.length==0 || !self.init_queued
-            ) {
-              return false;
-            }
-            return true;
-          };
-          this.mobilePlayLockDisabled = false;
-          //work around for auto play?
-          document.addEventListener("touchstart", function(e){
-            self.video.play();
-            document.removeEventListener(e.type, arguments.callee);
-            self.mobilePlayLockDisabled=true;
-          }, false);
-          this.playcooldown=Date.now();
-        },
-        play: function (){
-          if (Date.now()<this.playcooldown){
-            return;
-          }
-          //Hopefully this can go when we no longer have to guard the Play option due to:
-          //https://bugs.chromium.org/p/chromium/issues/detail?id=178297
-          var isMobile = {
-              Windows: function() {
-                  return /IEMobile/i.test(navigator.userAgent);
-              },
-              Android: function() {
-                  return /Android/i.test(navigator.userAgent);
-              },
-              BlackBerry: function() {
-                  return /BlackBerry/i.test(navigator.userAgent);
-              },
-              iOS: function() {
-                  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
-              },
-              any: function() {
-                  return (isMobile.Android() || isMobile.BlackBerry() || isMobile.iOS() || isMobile.Windows());
-              }
-          };
-          if(isMobile.Android()){
-            //we have to wait for a touch event before calling play
-            if (!this.mobilePlayLockDisabled){
-              return;
-            }
-          }
-          this.video.play();
-          playcooldown=Date.now() + 1000;
-        },
-        init: function (initFrame, callback) {
-          //Called with the initFrame to start the player.
-          this.initFrame = initFrame;
-          var self = this;
-          if (!initFrame) {
-            throw 'init requires a valid mp4 segment init frame.';
-          }
-          if (!initFrame instanceof Uint8Array) {
-            throw 'the mp4 init frame must be of type UInt8Array';
-          }
-          //Need to establish the buffers and pipeline to the video decoder
-          //before we can start appending the data anywhere.
-          this.initSourceBuffer(function () {
-            self.sourceBuffer.appendBuffer(initFrame);
-            self.init_queued = true;
-            self.healthCheck();
-            self._setInitialized(true);
-            if (callback && typeof callback == 'function') {
-              callback();
-            }
-          });
-        },
-        append: function (data) {
-          if (!this.initialized) {
-            throw 'The initFrame property must be set before appending data';
-          }
-          if (data === undefined) {
-            console.error('Append of empty data detected.');
-            return;
-          }
-          if (data == null) {
-            log_trace('Null data received');
-            return;
-          }
-          if (data.length === 0) {
-            console.error('empty packet detected.');
-            return;
-          }
-          if (!data instanceof Uint8Array) {
-            throw 'the mp4 data frame must be of type UInt8Array';
-          }
-          var self = this;
-          var queue = this.queue;
+        buffer: [],
+        init: function(initFrame, callback) {
+          var buffer=this.buffer;
+          buffer.push(initFrame)
+          this._setInitialized(true);
           var video = this.$.video;
-          //TODO: We need a better option as it is possible with lower resolution
-          //to have small I frames that would not trigger the keyframe matching criteria
-          //https://crbug.com/229412
-
-//          if (!this.keyframe) {
-//            if (data.length < 65536) {
-//              log_trace('tossing out frame, waiting for I frame');
-//              return;  //wait for iframe
-//            }
-//            this.keyframe = true;
-//          }
-
-          //this.fps_count++;
-          //this.bps_count += data.length;
-          if (this.safeToAppend()) {
-            self.sourceBuffer.appendBuffer(data);
-          } else {
-            if (queue.length>120){
-              queue.shift();
-            }
-            queue.push(data);
-          }
-          this.ProcessedFrame({ size: data.length });
-        },
-        initSourceBuffer: function (callback) {
-          //This creates the machinery for the video player based on the type of media in
-          //the initFrame and it wires up all of the  events so that it is ready to accept data frames.
-          //in a worst case, this may need to be called again if the mediaSource becomes unresponsive.
-          var self = this;
-          this.video = this.$.video;
-          var video = this.video;
-          var reInit = function () {
-            self.init_queued = false;
-            mediaSource = new MediaSource();
-            video.src = window.URL.createObjectURL(mediaSource);  //sourceopen();
-          };
-          //If the mediaSouce is not yet ready, abort and try agian after a short pause
-          if (this.mediaSource.readyState != 'open') {
-            setTimeout(self.initSourceBuffer.bind(this, callback), 500);
-            //console.log("retrying source open");
-            return;
-          }
-          //Only handling a single video stream at the moment
-          if (this.mediaSource.sourceBuffer !== undefined) {
-            console.error('packet-video is only capable of handling a single media stream.');
-            return;
-          }
-          this.mediaSource.sourceBuffers.addEventListener('addsourcebuffer', function (e) {
-            if ((callback!==undefined) && (typeof(callback) == 'function')){
-              callback();
-            }
-            //we wait for the sourceBuffer to be added
-            //http://www.sitepoint.com/create-one-time-events-javascript/
-            e.target.removeEventListener(e.type, arguments.callee);
-          });
-          //TODO: The video seems to work even if the codec is not an exact match to the actual
-          //media.  Should find a way to inspect the init frame to figure out the right values which
-          //should also open up additional streaming formats
-          try{
-            this.sourceBuffer = this.mediaSource.addSourceBuffer('video/mp4; codecs="avc1.4d401e"');
-          } catch(e){
-            //This has been causing problems when using hardware decoders on OS/X.  Similar symptoms on Android.
-            //Could changes have been made to restrict the codecs again?
-            console.error(JSON.stringify(e));
-            setTimeout(self.initSourceBuffer.bind(this, callback), 500);
-            return;
-          }
-          //this is intended as an optimization for real-time video, take the packets as they come.
-          if (this.sourceBuffer.mode){
-            this.sourceBuffer.mode = 'sequence';
-          }
-          [
-            'updatestart',
-            'updateend',
-            'update',
-            'error',
-            'abort'
-          ].forEach(function (ev) {
-            self.sourceBuffer.addEventListener(ev, function () {
-              //TODO: Move the event tracing to a debug library for runtime on/off
-              log_trace('sourceBuffer event:', ev);
-            });
-          });
-
-          //This attempts to move data in to sourceBuffer, and schedules
-          //an auto retry if it is not safe to do so, which should help recover
-          //from situations where the updateend event fired when no data was ready
-          //thus stopping the update loop.
-          var pendingmove = false;
-          var moveQueueToSourceBuffer = function moveQueueToSourceBuffer(scheduled){
-            if (pendingmove && !scheduled){return};
-            pendingmove = true;
-            if (self.safeToAppend()){
-              self.sourceBuffer.appendBuffer(self.queue.shift());
-              log_trace('inserting data from queue in to sourceBuffer:', 'moveQueueToSourceBuffer');
-              pendingmove=false;
-            } else {
-              setTimeout(moveQueueToSourceBuffer.bind(this,true), 50);
-            }
-          }
-
-          this.sourceBuffer.addEventListener('updateend',function(){
-            //This is the primary engine for feeding data in to the buffer from the queue
-            moveQueueToSourceBuffer();
-          })
-          var keyframe = false;
-        },
-        attached: function () {
-          var self = this;
-          //The MediaSource which is the API gateway to sending data to the video player
-          //should only have to be setup once per video player.
-          var MediaSource = window.MediaSource || window.WebKitMediaSource;
-          if (!MediaSource) {
-            console.alert('MediaSource API is not available, upgrade or use a different browser');
-          }
-          this.mediaSource = new MediaSource();
-          [
-            'sourceopen',
-            'sourceended',
-            'sourceclose',
-            'loadedmetadata',
-            'loadeddata',
-            'canplay',
-            'canplaythrough',
-            'seeking',
-            'ended',
-            'loadstart',
-            'playing',
-            'waiting',
-            'progress',
-            'suspend',
-            'stalled'
-          ].forEach(function (ev) {
-            self.mediaSource.addEventListener(ev, function () {
-              log_trace('mediaSource event:', ev);
-            });
-          });
-  //        this.mediaSource.addEventListener('sourceopen', function () {
-  //          this.mediaSourceOpen = true;
-  //        });
-          [
-            'addsourcebuffer',
-            'removesourcebuffer'
-          ].forEach(function (ev) {
-            self.mediaSource.sourceBuffers.addEventListener(ev, function () {
-              log_trace('sourceBufferList event:', ev);
-            });
-          });
           [
             'loadstart',
             'emptied',
@@ -391,248 +116,115 @@
             'seeked',
             'pause'
           ].forEach(function (ev) {
-            self.$.video.addEventListener(ev, function () {
-              log_trace('video event:', ev);
+            video.addEventListener(ev, function () {
+              console.log('video event:', ev);
             });
           });
-          this.$.video.src = window.URL.createObjectURL(this.mediaSource);
-          var self = this;
-          var video = this.$.video;
-          this.video = video;
-          this.oneSecondIntervalTimer = setInterval(function () {
-            if (self.sourceBuffer === undefined) {
-              return;
-            }
-            self.droppedframes = self.video.webkitDroppedFrameCount;
-            self.decodedframes = self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames;
-            self.fps = self.droppedframes + self.decodedframes - self.fps_count;
-            self.bps = (self.bytes_count * 8).toLocaleString();
-            self.fps_count = self.droppedframes + self.decodedframes;
-            self.bytes_count = 0;
-            if ((self.mediaSource.sourceBuffers.length==0) || (self.sourceBuffer.length <= 0)){
 
+          // ./mp4info frag_bunny.mp4 | grep Codec
+          var mimeCodec = 'video/mp4; codecs="avc1.4d401e"';
 
-            return;
-            }
-            //remove old video from the buffer
-            //Do to chrome issues, must keep the lats I frame in the buffer.
-            if (!self.sourceBuffer.updating && video.buffered.length > 0) {
-              if (video.currentTime - 90 > video.buffered.start(0)) {
-                self.sourceBuffer.remove(video.buffered.start(0), video.currentTime - 90);
+          var mediaSource = null;
+          if ('MediaSource' in window && MediaSource.isTypeSupported(mimeCodec)) {
+            mediaSource = new MediaSource;
+            [
+              'sourceopen',
+              'sourceended',
+              'sourceclose',
+              'loadedmetadata',
+              'loadeddata',
+              'canplay',
+              'canplaythrough',
+              'seeking',
+              'ended',
+              'loadstart',
+              'playing',
+              'waiting',
+              'progress',
+              'suspend',
+              'stalled'
+            ].forEach(function (ev) {
+              mediaSource.addEventListener(ev, function () {
+                console.log('mediaSource event:', ev);
+              });
+            });
+
+            //console.log(mediaSource.readyState); // closed
+            video.src = URL.createObjectURL(mediaSource);
+            mediaSource.addEventListener('sourceopen', sourceOpen);
+          } else {
+            console.error('Unsupported MIME type or codec: ', mimeCodec);
+          }
+
+          var sourceBuffer = null;
+
+          function sourceOpen(_) {
+             sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
+             [
+               'updatestart',
+               'updateend',
+               'update',
+               'error',
+               'abort'
+             ].forEach(function (ev) {
+               sourceBuffer.addEventListener(ev, function () {
+                 //TODO: Move the event tracing to a debug library for runtime on/off
+                 console.log('sourceBuffer event:', ev);
+               });
+             });
+             if (sourceBuffer.mode){
+                sourceBuffer.mode = 'sequence';
+             }
+             console.log('sourceBuffer mode:',sourceBuffer.mode);
+             sourceBuffer.addEventListener('updateend',function(){
+               checkBuffer;
+             })
+             checkBuffer();
+             video.addEventListener('timeupdate', checkBuffer);
+             video.addEventListener('canplay', function() {
+                video.play();
+             });
+             video.addEventListener('loadedmetadata',function(){
+               setTimeout(function(){
+                 //video.currentTime+=.001;
+                 video.play()
+               },1000);
+               //video.play(); //because canplay won't fire
+             })
+             video.addEventListener('seeking', seek);
+             callback();
+          };
+
+          function appendSegment(chunk) {
+            sourceBuffer.appendBuffer(chunk);
+            console.log('video current time:',video.currentTime);
+          };
+
+          function checkBuffer(_) {
+              //if anything in buffer, call appendSegment with the next item in the buffer
+              if((buffer.length>0) && (!sourceBuffer.updating)){
+                appendSegment(buffer.shift());
               }
+            //console.log(video.currentTime, currentSegment, segmentDuration);
+          };
+          this.checkBuffer = checkBuffer;
+          function seek(e) {
+            console.log(e);
+            if (mediaSource.readyState === 'open') {
+              sourceBuffer.abort();
+              console.log(mediaSource.readyState);
+            } else {
+              console.log('seek but not open?');
+              console.log(mediaSource.readyState);
             }
-            if (!self.latencyReducer)
-              return;
-            //video.currentTime = self.sourceBuffer.buffered.end(0);
-            if (video.buffered.length > 0 && video.seekable.end(0) - video.currentTime > 0.2) {
-              video.currentTime = video.seekable.end(0) - 0.001;
-            }
-          }, 1000);
-          //update stats
-          this.halfSecondIntervalTimer = setInterval(function () {
-            if (self.queue === undefined)
-              return;
-            self.paused = self.video.paused;
-            self.queueSize = self.queue.length;
-            self.error = self.video.error !== null;
-            self.currentTime = self.video.currentTime.toLocaleString();
-            if (self.mediaSource.readyState !== 'open')
-              return;
-            var sourceBuffer = self.sourceBuffer;
-            if ((sourceBuffer == undefined) || (self.mediaSource.sourceBuffers.length==0)){
-              self.initSourceBuffer();
-              return;
-            };
-            if (sourceBuffer.buffered.length > 0) {
-              self.buffertime = sourceBuffer.buffered.end(0) - sourceBuffer.buffered.start(0);
-              self.gaptime = video.buffered.end(0) - video.currentTime;
-              self.buffertimeStart = video.buffered.start(0);
-              self.buffertimeEnd = video.seekable.end(0);
-            }
-            //general stall check
-            if (self.videoState == 'stalled' && self.sourceBuffer.buffered.length > 0) {
-              //Assume we are stuck.. again
-              log_healthCheck('Video stall detected, bumping...');
-              video.currentTime = video.seekable.end(0);
-            } else if ((self.queue.length>0) && self.sourceBuffer.buffered.length==0 ) {
-              self.sourceBuffer.appendBuffer(self.queue.shift());
-            }
+          };
 
-          }, 500);
         },
-        stop: function () {
-          clearInterval(this.videopainttimerId);
-          this.isHidden = false;
-        },
-        formatSeconds: function (seconds) {
-          return Number(seconds).toFixed(2) + ' seconds';
-        },
-        healthCheck: function () {
-          //There are a LOT of things that can go wrong with a live real-time internet video stream.  To
-          //keep the rest of the code clean, the checks are all rolled in to a general healhCheck function.
-          var self = this;
-          var bufferAndDecoderStalled = function () {
-            if (!self.sourceBuffer.updating && this.lastDecoded > 0 && self.videoState !== 'stalled' && (this.lastDecoded == self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames)) {
-              return true;
-            }
-            return false;
-          };
-          var detectStalledVideo = function () {
-            if (self.videoState == 'stalled' && queue.length > 0 && self.sourceBuffer !== undefined && !self.sourceBuffer.updating) {
-              return true;
-            }
-            return false;
-          };
-          var detectDisassociatedBuffer = function () {
-            if (self.sourceBuffer !== undefined && self.video.buffered.length == 0) {
-              return true;
-            }
-            return false;
-          };
-          var recoverSilentDecoderStall = function () {
-            if (!self.sourceBuffer.updating) {
-              //self.sourceBuffer.remove(0, Number.POSITIVE_INFINITY); //clear buffer
-              //console.log('Buffers cleared');
-              //self.sourceBuffer.abort();
-              self.video.currentTime = self.video.seekable.end(0);
-            }
-          };
-          var detectPausedVideo = function () {
-            if (self.video.paused && self.video.buffered.length > 0 && self.init_queued) {
-              return true;
-            }
-            return false;
-          };
-          var recoverStuckVideoPlayer = function () {
-            self.video.currentTime = self.video.buffered.start(0);
-          };
-          var recoverFromFrameRejection = function () {
-            //   console.dir(self.sourceBuffer);
-            //    console.dir(self.mediaSource);
-            //   console.dir(self.video);
-            //  sourceBuffer.timestampOffset = sourceBuffer.buffered.end(0);
-            //self.sourceBuffer.remove(0, Number.POSITIVE_INFINITY); //clear buffer
-            self.video.currentTime += 0.001;  //trick to "unstick" video
-          };
-          var recoverFromVideoElementError = function () {
-            /*     self.sourceBuffer.abort();
-                 self.video.currentTime = Math.min(self.video.seekable.end(0),self.video.buffered.end(0))-.001;
-                 if (self.sourceBuffer !== undefined && !self.sourceBuffer.updating){
-                    self.sourceBuffer.appendBuffer(self.queue.shift());
-                 }
-            */
-            self.init_queued = false;
-            self.video.src = '';
-            if (self.oneSecondIntervalTimer!==null){
-              clearInterval(self.oneSecondIntervalTimer);
-            }
-            if (self.halfSecondIntervalTimer!==null){
-              clearInterval(self.halfSecondIntervalTimer);
-            }
-            if (self.healthCheckInterval!=null){
-              clearInterval(self.healthCheckInterval);
-            }
-            self.attached();
-            self.init(self.initFrame);
-
-          };
-          var pushFramefromQueue = function () {
-            self.sourceBuffer.appendBuffer(self.queue.shift());
-          };
-          var lastBuffer;
-          //state from last check
-          var waitingForDecoderReset = Date.now();
-          //Make these checks after the buffer claims to have finished processing the queue
-
-          var check = function () {
-            //if both stalled buffer and decoder treat as video error
-            if (bufferAndDecoderStalled()) {
-              self.stats.errors.video.totalfailure++;
-              self.notifyPath('video.stats.errors.video.totalfailure');
-              recoverFromVideoElementError();
-              return;
-            }
-            //This is a work around because the default mode (segments) for video playback
-            //assumes frames out of sequence and won't just play them in the order
-            //they are palced in the buffer.  Wating for (sequence mode to be implimented)
-            if (self.video.buffered.length > 0 && self.video.currentTime == 0 && !self.video.paused) {
-              log_healthCheck('Video has not started with data in the queue, bumping...');
-              recoverStuckVideoPlayer();
-              return
-            }
-            //Check for a buffer getting disassociated from the video object... possibly from the browser window sleeping?
-            if (detectDisassociatedBuffer()) {
-              self.stats.errors.video.bufferDisassociation++;
-              self.notifyPath('stats.errors.video', self.stats.errors.video);
-            }
-            if (detectPausedVideo()) {
-              //  video.currentTime=video.buffered.end(0);
-              log_healthCheck('Video is paused with data in the queue, bumping...');
-              self.play();  // Start playing after 1st chunk is appended.
-              return;
-            }
-            //The system is likely ran out of content and stalled
-            if (detectStalledVideo()) {
-              log_healthCheck('Video stalled, queue size:' + self.queue.length + ' injecting next frame to buffer');
-              pushFramefromQueue();
-              return;
-            }
-            if (self.queue.length > 0 && !self.sourceBuffer.updating && self.mediaSource.readyState == 'open' && self.video.error == null) {
-              //I think this check should be taking in to account the decoded count
-              if (self.sourceBuffer.buffered.length > 0 && lastBuffer == self.sourceBuffer.buffered.end(0)) {
-                log_healthCheck('Frames getting lost between the buffer and decoder, attemping to fix');
-                recoverFromFrameRejection();
-                //return;
-              }
-              if (self.sourceBuffer.buffered.length > 0) {
-                lastBuffer = self.sourceBuffer.buffered.end(0);
-                //return;
-              }
-              self.sourceBuffer.appendBuffer(self.queue.shift());
-              return;
-            }
-            //decoder has stalled
-            if (self.lastDecoded > 0 && Date.now() > waitingForDecoderReset && self.video.videoState !== 'stalled' && (self.lastDecoded == self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames)) {
-              log_healthCheck('Decoder stall without informing video element detected');
-              recoverSilentDecoderStall();
-              waitingForDecoderReset = Date.now() + 1000;
-              return;
-            }
-
-          };
-          this.sourceBuffer.addEventListener('updateend', function(){
-            check();
-            self.lastDecoded = self.video.webkitDecodedFrameCount || self.video.mozDecodedFrames;
-          });
-          this.healthCheckInterval = setInterval(check,1000);
-          this.video.addEventListener('seeking', function () {
-            if (self.video.buffered.length < 1)
-              return;
-            if (self.video.currentTime > self.video.buffered.end(0)) {
-              //this is annoying but the Chrome team did not seem to want to fix the issue.
-              log_healthCheck.log('The current play time is reported to be beyond the buffer');
-            }
-          });
-          this.video.addEventListener('error', function (e) {
-            log_healthCheck('Video player error detected');
-            if (this.error ===null){
-              console.error('Video element threw an error event but does not have an error recorded');
-              //How to handle this
-              return;
-            }
-            if (this.error.code == 3) {
-              self.set('stats.errors.video.code3', self.stats.errors.video.code3 + 1);
-              recoverFromVideoElementError();
-            }
-          });
-          this.video.addEventListener('progress', function (ev) {
-            self.videoState = ev.type;
-          });
-        },
-        ProcessedFrame: function (details) {
-          this.fps_count++;
-          this.bytes_count += details.size;
+        append: function(data) {
+          this.buffer.push(data);
+          this.checkBuffer();
         }
+
       });
     }());
   </script>
