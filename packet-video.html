@@ -151,6 +151,28 @@
               });
             });
 
+            var safePlay = function(){
+              if (!video.pause){
+                return;
+              }
+              if (/Android/i.test(navigator.userAgent)){
+                document.addEventListener("touchstart", function(e){
+                   video.play();
+                   document.removeEventListener(e.type, arguments.callee);
+                 }, false);
+              } else {
+                video.play();
+              }
+            }
+            video.safePlay = safePlay;
+
+            video.addEventListener('suspend',function(){
+              //on a mobile connection, this seems to get triggered
+              setTimeout(function(){
+                safePlay()
+              },1000);
+            });
+
              [
                'addsourcebuffer',
                'removesourcebuffer'
@@ -200,41 +222,24 @@
              })
 
              video.addEventListener('timeupdate', checkBuffer);
-             var safePlay = function(){
-               if (!video.pause){
-                 return;
-               }
-               if (/Android/i.test(navigator.userAgent)){
-                 document.addEventListener("touchstart", function(e){
-                    video.play();
-                    document.removeEventListener(e.type, arguments.callee);
-                  }, false);
-               } else {
-                 video.play();
-               }
-             }
+
              video.addEventListener('canplay', function() {
                 safePlay();
              });
              video.addEventListener('loadedmetadata',function(){
                setTimeout(function(){
                  //video.currentTime+=.001;
-                 safePlay()
+                 video.safePlay()
                },500);
                //video.play(); //because canplay won't fire
              });
             //http://code.tutsplus.com/tutorials/html5-audio-and-video-what-you-must-know--net-15545
             video.addEventListener('loadeddata',function(){
               setTimeout(function(){
-                safePlay()
+                video.safePlay()
               },1000);
             });
-            video.addEventListener('suspend',function(){
-              //on a mobile connection, this seems to get triggered
-              setTimeout(function(){
-                safePlay()
-              },1000);
-            });
+
 
              video.addEventListener('seeking', seek);
              this.cleanupInterval = setInterval(function(){
