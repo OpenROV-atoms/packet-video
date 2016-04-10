@@ -120,7 +120,7 @@
           if (this.latencyReducer) {
             this.latencyIntervalTimer = setInterval(function(){
               if(video.paused){return;}
-              if ((video.seekable.end(0) - video.currentTime) > .2){
+              if ((video.seekable.end(0) - video.currentTime) > .1){
                 video.currentTime = video.seekable.end(0) - 0.001;
               }
             },500);
@@ -356,7 +356,7 @@
 
         },
         append: function(data) {
-          maxQueueSize = this.latencyReducer ? 30:120;
+          maxQueueSize = this.latencyReducer ? 1:120;
 
           if(this.buffer.length>=maxQueueSize){
             this.buffer.shift();
