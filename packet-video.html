@@ -116,6 +116,16 @@
               bufferSource: 0
             }
           };
+          var video = this.$.video;
+          if (this.latencyReducer) {
+            this.latencyIntervalTimer = setInterval(function(){
+              if(video.paused){return;}
+              if ((video.seekable.end(0) - video.currentTime) > .2){
+                video.currentTime = video.seekable.end(0) - 0.001;
+              }
+            },500);
+          }
+
 
           this.statsIntervalTimer = setInterval(function () {
             if (!self.initialized){
@@ -209,12 +219,13 @@
                 log_trace('mediaSource event:', ev);
               });
             });
-
+            var videoRequiresHumanTouch=/Android/i.test(navigator.userAgent);
             var safePlay = function(){
               if (!video.paused){
                 return;
               }
-              if (/Android/i.test(navigator.userAgent)){
+              if (videoRequiresHumanTouch){
+                videoRequiresHumanTouch = false;
                 document.addEventListener("touchstart", function(e){
                    video.play();
                    document.removeEventListener(e.type, arguments.callee);
@@ -292,17 +303,22 @@
              video.addEventListener('loadedmetadata',function(){
                setTimeout(function(){
                  //video.currentTime+=.001;
-                 video.safePlay()
+                 video.safePlay();
                },500);
                //video.play(); //because canplay won't fire
              });
             //http://code.tutsplus.com/tutorials/html5-audio-and-video-what-you-must-know--net-15545
             video.addEventListener('loadeddata',function(){
               setTimeout(function(){
-                video.safePlay()
+                video.safePlay();
               },1000);
             });
 
+            document.addEventListener('visibilitychange', function(){
+              if(document.visibilityState=='visible'){
+                video.safePlay();
+              }
+            })
 
              video.addEventListener('seeking', seek);
              this.cleanupInterval = setInterval(function(){
@@ -340,7 +356,7 @@
 
         },
         append: function(data) {
-          maxQueueSize = this.latencyReducer ? 1:20;
+          maxQueueSize = this.latencyReducer ? 30:120;
 
           if(this.buffer.length>=maxQueueSize){
             this.buffer.shift();
