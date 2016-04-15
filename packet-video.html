@@ -134,19 +134,19 @@
             self.paused = video.paused;
             self.queueSize = self.buffer.length;
             self.error = video.error !== null;
+            self.fps = (self.droppedframes + self.decodedframes) -  self.fps_count;
+            self.fps = self.fps*2; //per second
+            self.bps = (self.bytes_count*2 * 8).toLocaleString();
+            self.fps_count = self.droppedframes + self.decodedframes;
+            self.bytes_count = 0;
             self.currentTime = video.currentTime.toLocaleString();
+            self.droppedframes = video.webkitDroppedFrameCount;
+            self.decodedframes = video.webkitDecodedFrameCount || video.mozDecodedFrames;
             self.buffertime = video.buffered.end(0) - video.buffered.start(0);
             self.gaptime = video.buffered.end(0) - video.currentTime;
             self.buffertimeStart = video.buffered.start(0);
             self.buffertimeEnd = video.seekable.end(0);
-            self.droppedframes = video.webkitDroppedFrameCount;
-            self.decodedframes = video.webkitDecodedFrameCount || video.mozDecodedFrames;
-            self.fps = self.droppedframes + self.decodedframes - self.fps_count;
-            self.fps = self.fps*2; //per second
-            self.bps = (self.bytes_count * 8).toLocaleString();
-            self.bps = self.bps*2;
-            self.fps_count = self.droppedframes + self.decodedframes;
-            self.bytes_count = 0;
+
           },500);
 
           this.formatSeconds= function (seconds) {
@@ -356,7 +356,7 @@
         },
         append: function(data) {
           maxQueueSize = this.latencyReducer ? 1:120;
-
+          this.bytes_count+=data.length;
           if(this.buffer.length>=maxQueueSize){
             this.buffer.shift();
           }
