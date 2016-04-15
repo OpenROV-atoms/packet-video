@@ -38,9 +38,8 @@
       font-size: 1.5vw;
     }
   </style>
-  <template>
+  <template strip-whitespace>
     <div id="videocontainer" style="display:block; height:100%; width:100%; position:relative;" on-hover="">
-      <img id="videomissing" src="{{novideoImageURL}}" hidden$="{{isHidden}}">
       <video id="video" ></video>
       <content></content>
       <div id='stats' hidden$="{{showStats}}">
