@@ -42,9 +42,10 @@
     <div id="videocontainer" style="display:block; height:100%; width:100%; position:relative;" on-hover="">
       <video id="video" ></video>
       <content></content>
-      <div id='stats' hidden$="{{showStats}}">
+      <div id='stats' hidden$="{{!showStats}}">
         <div id='fps'><span>{{fps}}</span> decoded fps</div>
         <div id='bps'><span>{{bps}}</span> b/s</div>
+        <div id='packets'><span>{{pps}}</span> p/s</div>
         <div id='currentTime'><span>{{currentTime}}</span> (current time)</div>
         <div id='buffertime'><span>{{formatSeconds(buffertime)}}</span> (buffertime)</div>
         <div><span>{{formatSeconds(buffertimeStart)}}</span> (buffertime-start)</div>
@@ -104,6 +105,8 @@
           this.currentTime = 0;
           this.droppedframes = 0;
           this.decodedframes = 0;
+          this.pps = 0;
+          this.pps_count = 0;
           this.stats = {
             errors: {
               video: {
@@ -119,8 +122,11 @@
           if (this.latencyReducer) {
             this.latencyIntervalTimer = setInterval(function(){
               if(video.paused){return;}
-              if ((video.seekable.end(0) - video.currentTime) > .1){
-                video.currentTime = video.seekable.end(0) - 0.001;
+              if(video.buffered.lenth>0){
+                if ((video.seekable.end(0) - video.currentTime) > .1){
+                  log_trace('reducing latency by seeking +.001');
+                  video.currentTime = video.seekable.end(0) - 0.001;
+                }
               }
             },500);
           }
@@ -135,19 +141,23 @@
             self.queueSize = self.buffer.length;
             self.error = video.error !== null;
             self.fps = (self.droppedframes + self.decodedframes) -  self.fps_count;
-            self.fps = self.fps*2; //per second
-            self.bps = (self.bytes_count*2 * 8).toLocaleString();
+            self.fps = self.fps; //per second
+            self.bps = (self.bytes_count * 8).toLocaleString();
             self.fps_count = self.droppedframes + self.decodedframes;
             self.bytes_count = 0;
+            self.pps = self.pps_count;
+            self.pps_count = 0;
             self.currentTime = video.currentTime.toLocaleString();
             self.droppedframes = video.webkitDroppedFrameCount;
             self.decodedframes = video.webkitDecodedFrameCount || video.mozDecodedFrames;
-            self.buffertime = video.buffered.end(0) - video.buffered.start(0);
-            self.gaptime = video.buffered.end(0) - video.currentTime;
-            self.buffertimeStart = video.buffered.start(0);
-            self.buffertimeEnd = video.seekable.end(0);
+            if (video.buffered.length>0){
+              self.buffertime = video.buffered.end(0) - video.buffered.start(0);
+              self.gaptime = video.buffered.end(0) - video.currentTime;
+              self.buffertimeStart = video.buffered.start(0);
+              self.buffertimeEnd = video.seekable.end(0);
+            } //TODO: Health Check where we are playing but there is no video buffer
 
-          },500);
+          },1000);
 
           this.formatSeconds= function (seconds) {
             return Number(seconds).toFixed(2) + ' seconds';
@@ -184,7 +194,10 @@
             'error',
             'canplay',
             'seeked',
-            'pause'
+            'pause',
+            'cuechange',
+            'encrypted',
+            'reset'
           ].forEach(function (ev) {
             video.addEventListener(ev, function () {
               log_trace('video event:', ev);
@@ -221,6 +234,9 @@
             var videoRequiresHumanTouch=/Android/i.test(navigator.userAgent);
             var safePlay = function(){
               if (!video.paused){
+                return;
+              }
+              if (video.buffered.length==0){
                 return;
               }
               if (videoRequiresHumanTouch){
@@ -299,6 +315,11 @@
              video.addEventListener('canplay', function() {
                 safePlay();
              });
+
+             video.addEventListener('progress', function() {
+                safePlay();
+             });
+
              video.addEventListener('loadedmetadata',function(){
                setTimeout(function(){
                  //video.currentTime+=.001;
@@ -322,6 +343,11 @@
              video.addEventListener('seeking', seek);
              this.cleanupInterval = setInterval(function(){
                if (!sourceBuffer.updating && video.buffered.length > 0) {
+                 return;
+                 //This is where we can save resource by aggresively dumping played frames.
+                 //but the buffers numbers seem to assume a 30fps which makes them wrong otherwise
+                 //so it is a bit tricky to get right, so relying on built in flushing
+                 //instead.
                  if (video.currentTime - 5 > video.buffered.start(0)) {
                    sourceBuffer.remove(video.buffered.start(0), video.currentTime - 5);
                  }
@@ -339,7 +365,6 @@
               if((buffer.length>0) && (!sourceBuffer.updating)){
                 appendSegment(buffer.shift());
               }
-            //console.log(video.currentTime, currentSegment, segmentDuration);
           };
           this.checkBuffer = checkBuffer;
           function seek(e) {
@@ -353,10 +378,41 @@
             }
           };
 
+          function detect_detachedBuffer() {
+            if ((video.buffered.length==0) && (!video.paused)){
+              log_healthCheck('detached buffer detected');
+              //This only appears to happen with streams that have more than just I frames.
+              return true;
+            }
+            return false;
+          }
+
+          function recover_detachedBuffer(){
+            //TODO: Recover from deteached buffer
+//            var original_src = video.src;
+            video.pause();
+//            video.src = original_src;
+
+          }
+
+          this.healthCheckTimer = setInterval(function(){
+            if (detect_detachedBuffer()){
+              recover_detachedBuffer();
+            }
+          },1000/15);
+
         },
         append: function(data) {
+          if (this.lastcheck===undefined){
+            this.lastcheck = 0;
+          }
           maxQueueSize = this.latencyReducer ? 1:120;
+          if (this.lastcheck==data.length){
+            return;
+          }
+          this.lastcheck = data.length;
           this.bytes_count+=data.length;
+          this.pps_count++;
           if(this.buffer.length>=maxQueueSize){
             this.buffer.shift();
           }
