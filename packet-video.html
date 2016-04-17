@@ -120,6 +120,7 @@
           };
           var video = this.$.video;
           if (this.latencyReducer) {
+            video.playbackRate=2; //burn through any buffer
             this.latencyIntervalTimer = setInterval(function(){
               if(video.paused){return;}
               if(video.buffered.lenth>0){
