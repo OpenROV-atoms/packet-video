@@ -123,7 +123,7 @@
             video.playbackRate=2; //burn through any buffer
             this.latencyIntervalTimer = setInterval(function(){
               if(video.paused){return;}
-              if(video.buffered.lenth>0){
+              if(video.buffered.length>0){
                 if ((video.seekable.end(0) - video.currentTime) > .1){
                   log_trace('reducing latency by seeking +.001');
                   video.currentTime = video.seekable.end(0) - 0.001;
