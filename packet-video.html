@@ -92,6 +92,13 @@
         getVideoElement: function(){
           return this.$.video;
         },
+        stop: function(){
+          this._setInitialized(false);
+          this.shortCircuitAppend=true;
+          this.video.stop();
+          this.mediaSource.endOfStream();
+
+        },
         ready: function(){
           var self = this;
           this.fps_count = 0;
@@ -212,6 +219,7 @@
           var mimeCodec = 'video/mp4; codecs="avc1.4d401e"';
 
           var mediaSource = null;
+          this.mediaSource = mediaSource;
           if ('MediaSource' in window && MediaSource.isTypeSupported(mimeCodec)) {
             mediaSource = new MediaSource;
             [
@@ -407,6 +415,9 @@
 
         },
         append: function(data) {
+          if (this.shortCircuitAppend){
+            return;
+          }
           if (this.lastcheck===undefined){
             this.lastcheck = 0;
           }
@@ -422,6 +433,10 @@
           }
           this.buffer.push(data);
           this.checkBuffer();
+        },
+        detached: function(){
+          log('detached fired');
+          this.stop();
         }
 
       });
