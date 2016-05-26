@@ -130,16 +130,28 @@
           };
           var video = this.$.video;
           if (this.latencyReducer) {
-            video.playbackRate=2; //burn through any buffer
-            this.latencyIntervalTimer = setInterval(function(){
-              if(video.paused){return;}
+            video.playbackRate=5; //burn through any buffer
+            var latencyInterval = function(){
+              if (video.playbackRate==1){
+                video.playbackRate=5;
+                cooldown=1000;
+                setTimeout(latencyInterval,500+cooldown);                
+              }
+              var cooldown = 0;
+                if(!video.paused){
               if(video.buffered.length>0){
-                if ((video.seekable.end(0) - video.currentTime) > .1){
+                var gaptime=video.seekable.end(0) - video.currentTime;
+                if ((gaptime > 4) || (gaptime < -4)){
                   log_trace('reducing latency by seeking +.001');
                   video.currentTime = video.seekable.end(0) - 0.001;
+                  cooldown=30000;
                 }
               }
-            },500);
+                  
+                }
+              setTimeout(latencyInterval,500+cooldown);
+            };
+            latencyInterval();
           }
 
 
@@ -379,6 +391,8 @@
               }
           };
           this.checkBuffer = checkBuffer;
+          
+          setInterval(checkBuffer.bind(this),1000/60);
           function seek(e) {
             log(e);
             if (mediaSource.readyState === 'open') {
@@ -421,9 +435,9 @@
           if (this.lastcheck===undefined){
             this.lastcheck = 0;
           }
-          maxQueueSize = this.latencyReducer ? 1:120;
+          maxQueueSize = this.latencyReducer ? 120:600;
           if (this.lastcheck==data.length){
-            return;
+            //return;
           }
           this.lastcheck = data.length;
           this.bytes_count+=data.length;
