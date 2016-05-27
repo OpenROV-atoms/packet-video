@@ -142,7 +142,7 @@
                   if ((gaptime > 4) || (gaptime < -4)) {
                     log_trace('reducing latency by seeking +.001');
                     video.currentTime = video.seekable.end(0) - 0.001;
-                    cooldown = 30000;
+                    cooldown = 5000;
                   }
                   
                   if ((video.playbackRate == 1) && (gaptime>.1)) {
