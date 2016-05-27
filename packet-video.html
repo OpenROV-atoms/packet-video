@@ -149,7 +149,7 @@
                     video.playbackRate = 10;
                     cooldown += 1000;
                     log_trace('setting playback = 5');
-                  } else if (video.playbackRate == 10){
+                  } else if ((video.playbackRate == 10) && (gaptime<.1)){
                     video.playbackRate = 1;
                     log_trace('setting playback = 1');                    
                   }                 
