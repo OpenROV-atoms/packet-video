@@ -150,8 +150,8 @@
                     cooldown += 1000;
                     log_trace('setting playback = 5');
                   } else if (video.playbackRate == 5){
-                    video.playbackRate = 1;
-                    log_trace('setting playback = 1');                    
+                   // video.playbackRate = 1;
+                   // log_trace('setting playback = 1');                    
                   }                 
                 }
                 
@@ -397,10 +397,19 @@
 
           function checkBuffer(_) {
             //if anything in buffer, call appendSegment with the next item in the buffer
-            if ((buffer.length > 0) && (!sourceBuffer.updating)) {
-              appendSegment(buffer.shift());
-              // appendSegment(Uint8Array.from(buffer));
-              // buffer.length=0;
+            if ((buffer) && (buffer.length > 0) && (!sourceBuffer.updating)) {
+              //appendSegment(buffer.shift());
+              var bsize = buffer.reduce(function(total,item){
+                return total+(item.length);
+              },0)
+              var a = new Uint8Array(bsize);
+              var counter = 0;
+              while(buffer.length>0){
+                var item = buffer.shift();
+                a.set(item,counter);
+                counter+=item.length;
+              }
+              appendSegment(a);
             }
           };
           this.checkBuffer = checkBuffer;
