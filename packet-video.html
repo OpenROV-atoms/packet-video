@@ -132,7 +132,7 @@
           };
           var video = this.$.video;
           if (this.latencyReducer) {
-            video.playbackRate = 5; //burn through any buffer
+            video.playbackRate = 10; //burn through any buffer
             var latencyInterval = function() {
               var cooldown = 0; 
               if (!video.paused) {
@@ -146,12 +146,12 @@
                   }
                   
                   if ((video.playbackRate == 1) && (gaptime>.1)) {
-                    video.playbackRate = 5;
+                    video.playbackRate = 10;
                     cooldown += 1000;
                     log_trace('setting playback = 5');
-                  } else if (video.playbackRate == 5){
-                   // video.playbackRate = 1;
-                   // log_trace('setting playback = 1');                    
+                  } else if (video.playbackRate == 10){
+                    video.playbackRate = 1;
+                    log_trace('setting playback = 1');                    
                   }                 
                 }
                 
