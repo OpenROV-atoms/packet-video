@@ -134,6 +134,7 @@
           if (this.latencyReducer) {
             video.playbackRate = 2; //burn through any buffer
             var latencyInterval = function() {
+              video = this.$.video;
               var cooldown = 0; 
               if (!video.paused) {
                 if (video.buffered.length > 0) {
@@ -158,9 +159,10 @@
                 
 
               }
-              setTimeout(latencyInterval, 500 + cooldown);
+              setTimeout(latencyInterval.bind(this), 500 + cooldown);
             };
-            latencyInterval();
+            latencyInterval.call(this);
+            
           }
 
 
@@ -194,17 +196,6 @@
           this.formatSeconds = function(seconds) {
             return Number(seconds).toFixed(2) + ' seconds';
           };
-        },
-        buffer: [],
-        initInProgress: false,
-        init: function(initFrame, callback) {
-          if (this.initInProgress) {
-            return
-          };
-          this.initInProgress = true;
-          var buffer = this.buffer;
-          buffer.push(initFrame)
-          var video = this.$.video;
           [
             'loadstart',
             'emptied',
@@ -236,7 +227,23 @@
             video.addEventListener(ev, function() {
               log_trace('video event:', ev);
             });
-          });
+          });          
+
+        },
+        buffer: [],
+        initInProgress: false,
+        init: function(initFrame, callback) {
+          if (this.initInProgress) {
+            return
+          };
+          var self=this;
+          this.initInProgress = true;
+          var buffer = this.buffer;
+          buffer.length=0;
+          buffer.push(initFrame)
+          this.initFrame=initFrame;
+          var video = this.$.video;
+
 
           // ./mp4info frag_bunny.mp4 | grep Codec
           var mimeCodec = 'video/mp4; codecs="avc1.4d401e"';
@@ -337,6 +344,10 @@
                 log_trace('sourceBuffer event:', ev);
               });
             });
+            sourceBuffer.addEventListener('error', function() {
+              log("sourceBuffer error detected");
+              sourceBuffer.errored=true;
+            });
             if (sourceBuffer.mode) {
               sourceBuffer.mode = 'sequence';
             }
@@ -397,23 +408,9 @@
 
           function checkBuffer(_) {
             //if anything in buffer, call appendSegment with the next item in the buffer
-            if ((buffer) && (buffer.length > 0) && (!sourceBuffer.updating)) {
-              
-              //Go back to the attempt to push a single frame instead of the set
+            if ((buffer) && (buffer.length > 0) && (!sourceBuffer.updating) && (!sourceBuffer.errored)) {
               appendSegment(buffer.shift());
               return;
-              
-              var bsize = buffer.reduce(function(total,item){
-                return total+(item.length);
-              },0)
-              var a = new Uint8Array(bsize);
-              var counter = 0;
-              while(buffer.length>0){
-                var item = buffer.shift();
-                a.set(item,counter);
-                counter+=item.length;
-              }
-              appendSegment(a);
             }
           };
           this.checkBuffer = checkBuffer;
@@ -446,9 +443,32 @@
 
           }
 
+          function detect_videoPlayerError() {
+            return video.error;
+          }
+
+          function recover_videoPlayerError() {
+            log_trace("Reinitalization of video started");
+            self.stop();
+          //  var video = self.$.video;
+          //  var newvideo = document.createElement("video");
+          //  newvideo.id="video";
+          //  video.parentNode.replaceChild(newvideo, video);
+
+
+            self.init(self.initFrame,function(){
+              log_trace("Reinitalization of video complete");
+              self.shortCircuitAppend = false;
+            });
+
+          }
+
           this.healthCheckTimer = setInterval(function() {
             if (detect_detachedBuffer()) {
               recover_detachedBuffer();
+            }
+            if (detect_videoPlayerError()){
+              recover_videoPlayerError();
             }
           }, 1000 / 15);
 
